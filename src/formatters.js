@@ -7,7 +7,7 @@ const moment = require('moment')
 const bot = require('./bot')
 
 /**
- * Function to format the DM that is send to the user when a staff member replies to them via !reply
+ * Function to format the DM that is sent to the user when a staff member replies to them via !reply
  * @callback FormatStaffReplyDM
  * @param {ThreadMessage} threadMessage
  * @return {Eris.MessageContent} Message content to send as a DM
@@ -23,7 +23,7 @@ const bot = require('./bot')
 /**
  * Function to format a user reply in a thread channel
  * @callback FormatUserReplyThreadMessage
- * @param {threadMessage} threadMessage
+ * @param {ThreadMessage} threadMessage
  * @return {Eris.MessageContent} Message content to post in the thread channel
  */
 
@@ -78,7 +78,7 @@ const bot = require('./bot')
  * Function to format the inbox channel notification for a staff reply deletion
  * @callback FormatLog
  * @param {Thread} thread
- * @param {ThreadMessage[]} opts
+ * @param {ThreadMessage[]} threadMessages
  * @param {FormatLogOptions={}} opts
  * @return {FormatLogResult}
  */
@@ -153,12 +153,12 @@ const defaultFormatters = {
         let content = `**${originalThreadMessage.user_name}** (\`${originalThreadMessage.user_id}\`) edited reply \`${originalThreadMessage.message_number}\``
 
         if (originalThreadMessage.body.length < 200 && newbody.length < 200) {
-            // Show edits of small message inline
+            // Show edits of small messages inline
             content += ` from \`${utils.disableInlineCode(originalThreadMessage.body)}\` to \`${newBody}\``
         } else {
             // Show edits of long messages in two code blocks
             content += ':'
-            content += `\n\nBefore:\n\`\`\`${utils.disableCodeBlocks(originalThreadMessage)}\`\`\``
+            content += `\n\nBefore:\n\`\`\`${utils.disableCodeBlocks(originalThreadMessage.body)}\`\`\``
             content += `\nAfter:\n\`\`\`${utils.disableCodeBlocks(newBody)}\`\`\``
         }
 
@@ -223,15 +223,15 @@ const defaultFormatters = {
         }
 
         const lines = threadMessages.map(message => {
-            // Legacy messages (from 2018) are the entire log in one message, so just server then as they are
+            // Legacy messages (from 2018) are the entire log in one message, so just serve them as they are
             if (message.message_type === THREAD_MESSAGE_TYPE.LEGACY) {
                 return message.body
             }
 
-            let line = `[${moment.utc(message.created_at).formal('YYYY-MM-DD HH:mm:ss')}]`
+            let line = `[${moment.utc(message.created_at).format('YYYY-MM-DD HH:mm:ss')}]`
 
             if (opts.verbose) {
-                if (message.dm_channel_id){
+                if (message.dm_channel_id) {
                     line += ` [DM CHA ${message.dm_channel_id}]`
                 }
 
@@ -250,7 +250,7 @@ const defaultFormatters = {
                 }
 
                 if (message.use_legacy_format) {
-                    // Legacy format (from pre-2.31.0) includes the role and username in the message body, do sserver that as is
+                    // Legacy format (from pre-2.31.0) includes the role and username in the message body, so serve that as is
                     line += ` ${message.body}`
                 } else if (message.is_anonymous) {
                     if (message.role_name) {
@@ -275,12 +275,12 @@ const defaultFormatters = {
                 line += ` [COMMAND] [${message.user_name} ${message.body}]`
             } else if (message.message_type === THREAD_MESSAGE_TYPE.REPLY_EDITED) {
                 const originalThreadMessage = message.getMetadataValue('originalThreadMessage')
-                line += ` [REPLY EDITED] ${originalThreadMessage.user_name} edited reply ${originalThreadMessage.message_number}`
+                line += ` [REPLY EDITED] ${originalThreadMessage.user_name} edited reply ${originalThreadMessage.message_number}:`
                 line += `\n\nBefore:\n${originalThreadMessage.body}`
                 line += `\n\nAfter:\n${message.getMetadataValue('newBody')}`
             } else if (message.message_type === THREAD_MESSAGE_TYPE.REPLY_DELETED) {
                 const originalThreadMessage = message.getMetadataValue('originalThreadMessage')
-                line += ` [REPLY DELETED] ${originalThreadMessage.user_name} deleted reply ${originalThreadMessage.message_number}`
+                line += ` [REPLY DELETED] ${originalThreadMessage.user_name} deleted reply ${originalThreadMessage.message_number}:`
                 line += `\n\n${originalThreadMessage.body}`
             } else {
                 line += ` [${message.user_name}] ${message.body}`
@@ -300,7 +300,7 @@ const defaultFormatters = {
         const fullResult = header + '\n\n' + lines.join('\n')
 
         return {
-            content: fullResult
+            content: fullResult,
         }
     }
 }
@@ -312,12 +312,12 @@ const formatters = { ...defaultFormatters }
 
 /**
  * @typedef {object} FormattersExport
- * @property {Messageformatters} formatters Read only
+ * @property {MessageFormatters} formatters Read only
  * @property {function(FormatStaffReplyDM): void} setStaffReplyDMFormatter
  * @property {function(FormatStaffReplyThreadMessage): void} setStaffReplyThreadMessageFormatter
  * @property {function(FormatUserReplyThreadMessage): void} setUserReplyThreadMessageFormatter
- * @property {function(FormatStaffReplyEditNotificationthreadMessage): void} setStaffReplyEditNotificationThreadMessageFormatter
- * @property {function(FormatStaffReplyDeletionNotificationthreadMessage): void} setStaffReplyDeletionNotificationThreadMessageFormatter
+ * @property {function(FormatStaffReplyEditNotificationThreadMessage): void} setStaffReplyEditNotificationThreadMessageFormatter
+ * @property {function(FormatStaffReplyDeletionNotificationThreadMessage): void} setStaffReplyDeletionNotificationThreadMessageFormatter
  * @property {function(FormatSystemThreadMessage): void} setSystemThreadMessageFormatter
  * @property {function(FormatSystemToUserThreadMessage): void} setSystemToUserThreadMessageFormatter
  * @property {function(FormatSystemToUserDM): void} setSystemToUserDMFormatter
@@ -368,5 +368,5 @@ module.exports = {
 
     setLogFormatter(fn) {
         formatters.formatLog = fn
-    }
+    },
 }

@@ -1,0 +1,58 @@
+{
+  "name": "modmail",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "watch": "supervisor -n exit -w src --inspect=0.0.0.0:9229 src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint ./src ./db/migrations",
+    "lint-fix": "eslint --fix ./src ./db/migrations",
+    "generate-config-jsdoc": "node src/data/generateCfgJsdoc.js",
+    "generate-plugin-api-docs": "jsdoc2md -t docs/plugin-api-template.hbs src/pluginApi.js > docs/plugin-api.md",
+    "create-migration": "knex migrate:make",
+    "run-migrations": "knex migrate:latest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CycPhoenix/ModMail.git"
+  },
+  "author": "CycPhoenix",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/CycPhoenix/ModMail/issues"
+  },
+  "homepage": "https://github.com/CycPhoenix/ModMail#readme",
+  "dependencies": {
+    "ajv": "^8.8.2",
+    "eris": "https://github.com/Dragory/eris/archive/0.14.0-stage-hotfix.tar.gz",
+    "express": "^4.17.1",
+    "helmet": "^4.6.0",
+    "humanize-duration": "^3.27.1",
+    "ini": "^2.0.0",
+    "json5": "^2.2.0",
+    "knex": "^0.95.14",
+    "knub-command-manager": "^9.1.0",
+    "mime": "^3.0.0",
+    "moment": "^2.29.1",
+    "mv": "^2.1.1",
+    "mysql2": "^2.3.3",
+    "pacote": "^12.0.2",
+    "public-ip": "^4.0.4",
+    "sqlite3": "^5.0.2",
+    "tmp": "^0.2.1",
+    "transliteration": "^2.2.0",
+    "uuid": "^8.3.2",
+    "yargs-parser": "^21.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.4.1",
+    "jsdoc-to-markdown": "^7.1.0",
+    "json-schema-to-jsdoc": "^1.1.0",
+    "supervisor": "https://github.com/petruisfan/node-supervisor/archive/fb89a695779770d3cd63b624ef4b1ab2908c105d.tar.gz"
+  },
+  "engines": {
+    "node": ">=12.0.0 <14.0.0"
+  }
+}

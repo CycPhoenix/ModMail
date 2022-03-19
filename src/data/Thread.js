@@ -5,7 +5,7 @@ const bot = require('../bot')
 const knex = require('../knex')
 const utils = require('../utils')
 const config = require('../cfg')
-const attachment = require('./attachments')
+const attachments = require('./attachments')
 const { formatters } = require('../formatters')
 const { callAfterThreadCloseHooks } = require('../hooks/afterThreadClose')
 const snippets = require('./snippets')
@@ -20,8 +20,8 @@ const { THREAD_MESSAGE_TYPE, THREAD_STATUS, DISCORD_MESSAGE_ACTIVITY_TYPES } = r
  * @property {Number} thread_number
  * @property {Number} status
  * @property {String} user_id
- * @property {String}.user_name
- * @property {String} channel.id
+ * @property {String} user_name
+ * @property {String} channel_id
  * @property {Number} next_message_number
  * @property {String} scheduled_close_at
  * @property {String} scheduled_close_id
@@ -33,7 +33,7 @@ const { THREAD_MESSAGE_TYPE, THREAD_STATUS, DISCORD_MESSAGE_ACTIVITY_TYPES } = r
  * @property {String} created_at
  * @property {String} metadata
  */
-class thread {
+class Thread {
     constructor(props) {
         utils.setDataModelProps(this, props)
 
@@ -73,7 +73,7 @@ class thread {
         // Try to open a DM channel with the user
         const dmChannel = await this.getDMChannel()
         if (!dmChannel) {
-            throw new Error('Could not open DMs with the user. They may heave blocked the bot or set their privacy settings higher.')
+            throw new Error('Could not open DMs with the user. They may have blocked the bot or set their privacy settings higher.')
         }
 
         return dmChannel.createMessage(content, file)
@@ -92,11 +92,11 @@ class thread {
             const textContent = typeof content === 'string' ? content : content.content
             const contentObj = typeof content === 'string' ? {} : content
             if (textContent) {
-                // Text content is included, chunk it and send itas individual messages.
+                // Text content is included, chunk it and send it as individual messages.
                 // Files (attachments) are only sent with the last message.
                 const chunks = utils.chunkMessageLines(textContent)
                 for (const [i, chunk] of chunks.entries()) {
-                    // Only send embeds, files, etc, with the last message
+                    // Only send embeds, files, etc. with the last message
                     const msg = (i === chunks.length - 1)
                         ? await bot.createMessage(this.channel_id, { ...contentObj, content: chunk }, file)
                         : await bot.createMessage(this.channel_id, { ...contentObj, content: chunk, embed: null })
@@ -110,7 +110,7 @@ class thread {
 
             return firstMessage
         } catch (e) {
-            // channel not found
+            // Channel not found
             if (e.code === 10003) {
                 console.log(`[INFO] Failed to send message to thread channel for ${this.user_name} because the channel no longer exists. Auto-closing the thread.`)
                 this.close(true)
@@ -127,10 +127,10 @@ class thread {
      */
     async _addThreadMessageToDB(data) {
         if (data.message_type === THREAD_MESSAGE_TYPE.TO_USER) {
-            data.message_number = await this.getAndIncrementNextMessageNumbe()
+            data.message_number = await this._getAndIncrementNextMessageNumber()
         }
 
-        const dmChannel = await ths.getDMChannel()
+        const dmChannel = await this.getDMChannel()
         const insertedIds = await knex('thread_messages').insert({
             thread_id: this.id,
             created_at: moment.utc().format('YYYY-MM-DD HH:mm:ss'),
@@ -143,7 +143,7 @@ class thread {
             .where('id', insertedIds[0])
             .select()
 
-        return new threadMessage(threadMessage[0])
+        return new ThreadMessage(threadMessage[0])
     }
 
     /**
@@ -154,7 +154,7 @@ class thread {
      */
     async _updateThreadMessage(id, data) {
         await knex('thread_messages')
-            .where('id, id')
+            .where('id', id)
             .update(data)
     }
 
@@ -192,7 +192,7 @@ class thread {
     /**
      * Adds the specified moderator to the thread's alert list after config.autoAlertDelay
      * @param {string} modId
-     * @returns {Promise<void>}ds
+     * @returns {Promise<void>}
      * @private
      */
     async _startAutoAlertTimer(modId) {
@@ -217,7 +217,7 @@ class thread {
 
         if (config.allowSnippets && config.allowInlineSnippets) {
             // Replace {{snippet}} with the corresponding snippet
-            // The beginning and end of the variable = {{ and }} - can be changed with the config options
+            // The beginning and end of the variable - {{ and }} - can be changed with the config options
             // config.inlineSnippetStart and config.inlineSnippetEnd
             const allSnippets = await snippets.all()
             const snippetMap = allSnippets.reduce((_map, snippet) => {
@@ -229,7 +229,7 @@ class thread {
             text = text.replace(
                 new RegExp(`${config.inlineSnippetStart}(\\s*\\S+?\\s*)${config.inlineSnippetEnd}`, 'ig'),
                 (orig, trigger) => {
-                    triegger = trigger.trim()
+                    trigger = trigger.trim()
                     const snippet = snippetMap[trigger.toLowerCase()]
                     if (snippet == null) {
                         unknownSnippets.add(trigger)
@@ -240,7 +240,7 @@ class thread {
             )
 
             if (config.errorOnUnknownInlineSnippet && unknownSnippets.size > 0) {
-                this.postSystemMessage(`The following snippets used in the reply do not exist:\n${Array.from(unknownSnippets).join(',')}`)
+                this.postSystemMessage(`The following snippets used in the reply do not exist:\n${Array.from(unknownSnippets).join(', ')}`)
                 return false
             }
         }
@@ -269,17 +269,17 @@ class thread {
             body: text,
             is_anonymous: (isAnonymous ? 1 : 0),
             role_name: roleName,
-            attachments: attachmentLinks
+            attachments: attachmentLinks,
         })
-        const threadMessage = await this._addThreadMessageToDB(rawThreadMessage.getMetadataValue())
+        const threadMessage = await this._addThreadMessageToDB(rawThreadMessage.getSQLProps())
 
         const dmContent = formatters.formatStaffReplyDM(threadMessage)
         const inboxContent = formatters.formatStaffReplyThreadMessage(threadMessage)
 
         // Because moderator replies have to be editable, we enforce them to fit within 1 messsage
-        if (!utils.messageContentIswithinMaxLength(dmContent) || !utils.messageContentIswithinMaxLength(inboxContent)) {
+        if (!utils.messageContentIsWithinMaxLength(dmContent) || !utils.messageContentIsWithinMaxLength(inboxContent)) {
             await this._deleteThreadMessage(threadMessage.id)
-            await this.postSystemMessage('Reply is too long! Make sure your reply is under 2000 characters total, modertor name in the reply included.')
+            await this.postSystemMessage('Reply is too long! Make sure your reply is under 2000 characters total, moderator name in the reply included.')
             return false
         }
 
@@ -288,7 +288,7 @@ class thread {
         try {
             dmMessage = await this._sendDMToUser(dmContent, files)
         } catch (e) {
-            await history._deleteThreadMessage(threadMessage.id)
+            await this._deleteThreadMessage(threadMessage.id)
             await this.postSystemMessage(`Error while replying to user: ${e.message}`)
             return false
         }
@@ -326,7 +326,7 @@ class thread {
      * @param {Eris.Message} msg
      * @returns {Promise<void>}
      */
-    async receriveUserReply(msg) {
+    async receiveUserReply(msg) {
         const fullUserName = `${msg.author.username}#${msg.author.discriminator}`
         let messageContent = msg.content || ''
 
@@ -336,11 +336,11 @@ class thread {
         const attachmentFiles = []
 
         for (const attachment of msg.attachments) {
-            const savedAttachment = await attachents.saveAttachment(attachment)
+            const savedAttachment = await attachments.saveAttachment(attachment)
 
             // Forward small attachments (<2MB) as attachments, link to larger ones
             if (config.relaySmallAttachmentsAsAttachments && attachment.size <= config.smallAttachmentLimit) {
-                const savedAttachment = await attachment.saveAttachment(attachment)
+                const file = await attachments.attachmentToDiscordFileObject(attachment)
                 attachmentFiles.push(file)
                 smallAttachmentLinks.push(savedAttachment.url)
             }
@@ -388,7 +388,7 @@ class thread {
         // Save DB entry
         let threadMessage = new ThreadMessage({
             message_type: THREAD_MESSAGE_TYPE.FROM_USER,
-            user_id: this.user.id,
+            user_id: this.user_id,
             user_name: fullUserName,
             body: messageContent,
             is_anonymous: 0,
@@ -413,11 +413,11 @@ class thread {
 
         // Interrupt scheduled closing, if in progress
         if (this.scheduled_close_at) {
-            await ths.cancelScheduledClose()
+            await this.cancelScheduledClose()
             await this.postSystemMessage(`<@!${this.scheduled_close_id}> Thread that was scheduled to be closed got a new reply. Cancelling.`, {
                 allowedMentions: {
                     users: [this.scheduled_close_id],
-                }
+                },
             })
         }
 
@@ -445,10 +445,10 @@ class thread {
  * @param {string} text
  * @param {object} opts
  * @param {object} [allowedMentions] Allowed mentions for the thread channel message
- * @param {boolean} {allowedMentions.everyone}
+ * @param {boolean} [allowedMentions.everyone]
  * @param {boolean|string[]} [allowedMentions.roles]
- * @param {boolean|string[]} {allowedMentions.users}
- * @returns [Promise<void>]
+ * @param {boolean|string[]} [allowedMentions.users]
+ * @returns {Promise<void>}
  */
     async postSystemMessage(text, opts = {}) {
         const threadMessage = new ThreadMessage({
@@ -513,7 +513,7 @@ class thread {
     /**
      * @param {Eris.MessageContent} content
      * @param {Eris.MessageFile} file
-     * @returns {Promise<Eris.Message|null>}
+     * @return {Promise<Eris.Message|null>}
      */
     async postNonLogMessage(content, file = null) {
         return this._postToThreadChannel(content, file)
@@ -676,7 +676,7 @@ class thread {
     /**
      * @returns {Promise<void>}
      */
-    async unsuspended() {
+    async unsuspend() {
         await knex('threads')
             .where('id', this.id)
             .update({
@@ -806,7 +806,7 @@ class thread {
 
         // Same restriction as in replies. Because edits could theoretically change the number of messages a reply takes, we enforce replies
         // to fit within 1 message to avoid the headache and issues caused by that.
-        if (!utils.messageContentIswithinMaxLength(formattedDM) || !utils.messageContentIswithinMaxLength(formattedThreadMessage)) {
+        if (!utils.messageContentIsWithinMaxLength(formattedDM) || !utils.messageContentIsWithinMaxLength(formattedThreadMessage)) {
             await this.postSystemMessage('Edited reply is too long! Make sure the edit is under 2000 characters total, moderator name in the reply included.')
             return false
         }
@@ -822,8 +822,8 @@ class thread {
                 body: '',
                 is_anonymous: 0,
             })
-            editThreadMessage.setMetaDataValue('originalThreadMessage', threadMessage)
-            editThreadMessage.setMetaDataValue('newBody', newText)
+            editThreadMessage.setMetadataValue('originalThreadMessage', threadMessage)
+            editThreadMessage.setMetadataValue('newBody', newText)
 
             const threadNotification = formatters.formatStaffReplyEditNotificationThreadMessage(editThreadMessage)
             const inboxMessage = await this._postToThreadChannel(threadNotification)
@@ -854,7 +854,7 @@ class thread {
                 body: '',
                 is_anonymous: 0,
             })
-            deletionThreadMessage.setMetaDataValue('originalThreadMessage', threadMessage)
+            deletionThreadMessage.setMetadataValue('originalThreadMessage', threadMessage)
 
             const threadNotification = formatters.formatStaffReplyDeletionNotificationThreadMessage(deletionThreadMessage)
             const inboxMessage = await this._postToThreadChannel(threadNotification)
@@ -889,7 +889,7 @@ class thread {
      * @param {*} value
      * @return {Promise<void>}
      */
-    async setMetaDataValue(key, value) {
+    async setMetadataValue(key, value) {
         this.metadata = this.metadata || {}
         this.metadata[key] = value
 
